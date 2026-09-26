@@ -1,0 +1,152 @@
+{
+  "schema_version": "scworkbench.operation_pack.v3",
+  "pack_abi_version": "3",
+  "identity_scheme": "scworkbench.operation_pack.canonical_json.v1",
+  "namespace": "scwblatent",
+  "package": {"name": "scwbLatent", "version": "0.1.0"},
+  "backend": "R",
+  "compatibility": {
+    "scworkbench": {"minimum": "0.1.0", "maximum_exclusive": "0.2.0"},
+    "pack_abi": {"minimum": "3", "maximum": "3"}
+  },
+  "entry_point": "scwbLatent::register_operation_pack",
+  "operations": [
+    {
+      "name": "peakvi_fit",
+      "qualified_name": "scwblatent::peakvi_fit",
+      "title": "PeakVI CPU fit",
+      "description": "Fit a CPU PeakVI model from authenticated matrix chunks and publish a contained model with a fitted latent space.",
+      "runner": ".latent_peakvi_fit",
+      "inputs": [{"name": "matrix", "kind": "matrix", "required": true,
+        "alignment": "cell_and_feature_ordered"}],
+      "params_schema": {"type": "object", "properties": {
+        "n_latent": {"type": "integer", "minimum": 2, "maximum": 1024, "default": 20},
+        "n_layers": {"type": "integer", "minimum": 1, "maximum": 16, "default": 2},
+        "n_hidden": {"type": "integer", "minimum": 1, "maximum": 8192, "default": 256},
+        "dropout": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.2},
+        "max_epochs": {"type": "integer", "minimum": 1, "maximum": 10000, "default": 500},
+        "lr": {"type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.001},
+        "early_stopping": {"type": "boolean", "default": true},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 2147483647, "default": 1},
+        "chunk_size": {"type": "integer", "minimum": 1, "maximum": 4096, "default": 256},
+        "batch_key": {"type": "null", "default": null},
+        "use_gpu": {"type": "boolean", "enum": [false], "default": false}
+      }, "additionalProperties": false},
+      "typed_slice_reads": [{
+        "name": "chunks", "input": "matrix", "reader": "read_typed_slices",
+        "kind": "matrix", "supported_axes": ["cells"], "chunk_axis": "cells",
+        "chunk_size_parameter": "chunk_size",
+        "call_discipline": "ordered_partition_exactly_once",
+        "empty_selection_policy": "reject", "duplicate_policy": "reject",
+        "selection": {"cells": {"policy": "effective_input_axis_v1"},
+          "features": {"policy": "effective_input_axis_v1"}}
+      }],
+      "dimension_policies": [{"output": "fit_summary",
+        "policy": "data_dependent_table_v1"}],
+      "outputs": [
+        {"name": "space", "category": "materialization", "kind": "space",
+          "storage_profile": "space_file_backed_hdf5_v1",
+          "allocated_id_key": "peakvi_space_id", "required": true,
+          "promotion_group": "fit",
+          "materialized_by_terminals": ["fit_summary", "model"]},
+        {"name": "model", "category": "terminal_artifact",
+          "kind": "model_ref", "storage_profile": "model_ref_contained_tree_v1",
+          "allocated_id_key": "peakvi_model_id", "required": true,
+          "promotion_group": "fit",
+          "matrix_trained_contained_model_closure_policy": {
+            "policy": "matrix_trained_contained_model_closure.v1",
+            "engine": "peakvi", "model_type": "peakvi",
+            "primary_path": "model.pt", "source_matrix_input": "matrix",
+            "paired_space_output": "space",
+            "latent_dimensions_parameter": "n_latent",
+            "required_sibling_terminals": ["space", "fit_summary"],
+            "file_order": "utf8_path_lexicographic_v1",
+            "maximum_file_count": 32,
+            "maximum_total_bytes": 1073741824
+          }},
+        {"name": "fit_summary", "category": "terminal_artifact",
+          "kind": "obs_table", "storage_profile": "terminal_primitive_v1",
+          "allocated_id_key": "peakvi_fit_summary_id", "required": true,
+          "promotion_group": "fit", "table_type": "peakvi_fit_summary"}
+      ],
+      "dependencies": [{"requirement_id": "cpu", "kind": "device_runtime",
+        "name": "cpu", "disposition": "required",
+        "probe": "core_device_availability_v1"}],
+      "promotion_closure": {
+        "model": ["fit_summary", "model", "space"],
+        "fit_summary": ["fit_summary", "model", "space"]
+      },
+      "replay_equivalence": {"space": "exact_canonical_value",
+        "model": "loadable_reference",
+        "fit_summary": "exact_canonical_value"}
+    },
+    {
+      "name": "peakvi_project",
+      "qualified_name": "scwblatent::peakvi_project",
+      "title": "PeakVI CPU transfer projection",
+      "description": "Project disjoint query cells through an authenticated transferred PeakVI model without joint refitting.",
+      "runner": ".latent_peakvi_project",
+      "inputs": [
+        {"name": "model", "kind": "model_ref", "required": true,
+          "alignment": "model_linked"},
+        {"name": "query_matrix", "kind": "matrix", "required": true,
+          "alignment": "cell_and_feature_ordered"}
+      ],
+      "params_schema": {"type": "object", "properties": {
+        "space_id_out": {"type": "string", "minLength": 1},
+        "overwrite": {"type": "boolean", "enum": [false], "default": false},
+        "chunk_size": {"type": "integer", "minimum": 1, "maximum": 4096,
+          "default": 256},
+        "batch_key": {"type": "null", "default": null},
+        "use_gpu": {"type": "boolean", "enum": [false], "default": false}
+      }, "required": ["space_id_out"], "additionalProperties": false},
+      "typed_slice_reads": [{
+        "name": "query_chunks", "input": "query_matrix",
+        "reader": "read_typed_slices", "kind": "matrix",
+        "supported_axes": ["cells"], "chunk_axis": "cells",
+        "chunk_size_parameter": "chunk_size",
+        "call_discipline": "ordered_partition_exactly_once",
+        "empty_selection_policy": "reject", "duplicate_policy": "reject",
+        "selection": {"cells": {"policy": "effective_input_axis_v1"},
+          "features": {"policy": "effective_input_axis_v1"}}
+      }],
+      "self_linked_contained_model_reads": [{
+        "name": "fitted_model", "input": "model",
+        "reader": "read_self_linked_contained_model_payload",
+        "allowed_models": [{"engine": "peakvi", "model_type": "peakvi"}],
+        "linkage_policy": "authenticated_existing_source_and_cell_linkage_v1",
+        "maximum_file_count": 32,
+        "maximum_total_bytes": 1073741824,
+        "call_discipline": "exactly_once"
+      }],
+      "publication_policies": [{
+        "output": "space", "policy": "authenticated_add_or_replace_v1",
+        "target_kind": "space", "target_id_parameter": "space_id_out",
+        "overwrite_parameter": "overwrite",
+        "transaction_scope": "promotion_group_v1"
+      }],
+      "dimension_policies": [{"output": "projection_summary",
+        "policy": "data_dependent_table_v1"}],
+      "outputs": [
+        {"name": "space", "category": "materialization", "kind": "space",
+          "storage_profile": "space_file_backed_hdf5_v1",
+          "allocated_id_key": "peakvi_project_space_id", "required": true,
+          "promotion_group": "project",
+          "materialized_by_terminals": ["projection_summary"]},
+        {"name": "projection_summary", "category": "terminal_artifact",
+          "kind": "obs_table", "storage_profile": "terminal_primitive_v1",
+          "allocated_id_key": "peakvi_project_summary_id", "required": true,
+          "promotion_group": "project",
+          "table_type": "peakvi_project_summary"}
+      ],
+      "dependencies": [{"requirement_id": "cpu", "kind": "device_runtime",
+        "name": "cpu", "disposition": "required",
+        "probe": "core_device_availability_v1"}],
+      "promotion_closure": {
+        "projection_summary": ["projection_summary", "space"]
+      },
+      "replay_equivalence": {"space": "exact_canonical_value",
+        "projection_summary": "exact_canonical_value"}
+    }
+  ]
+}
