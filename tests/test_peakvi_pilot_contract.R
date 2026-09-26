@@ -164,6 +164,115 @@ test_peakvi_cpu_fit_project_contract <- function() {
   TRUE
 }
 
+test_peakvi_registered_source_authentication_contract <- function() {
+  state <- .latent_test_fixture()
+  on.exit(.latent_test_cleanup(state), add = TRUE)
+  manifest <- jsonlite::read_json(system.file("scworkbench",
+    "operation-pack.json", package = "scwbLatent", lib.loc = state$library),
+    simplifyVector = FALSE)
+  fit_definition <- manifest$operations[[which(vapply(manifest$operations,
+    function(x) identical(x$name, "peakvi_fit"), logical(1)))]]
+  project_definition <- manifest$operations[[which(vapply(manifest$operations,
+    function(x) identical(x$name, "peakvi_project"), logical(1)))]]
+  model_output <- fit_definition$outputs[[which(vapply(
+    fit_definition$outputs, function(x) identical(x$name, "model"),
+    logical(1)))]]
+  stopifnot(identical(model_output$
+      matrix_trained_contained_model_closure_policy$policy,
+      "matrix_trained_contained_model_closure.v1"),
+    identical(unlist(model_output$
+      matrix_trained_contained_model_closure_policy$
+      required_sibling_terminals, use.names = FALSE),
+      c("space", "fit_summary")),
+    identical(fit_definition$promotion_closure$model,
+      list("fit_summary", "model", "space")),
+    identical(project_definition$self_linked_contained_model_reads[[1L]]$
+      linkage_policy, "authenticated_existing_source_and_cell_linkage_v1"))
+  fit <- scworkbench::wb_session_run_op(scworkbench::wb_session_new(),
+    state$bundle, "scwblatent::peakvi_fit", inputs = list(
+      matrix = "ATAC_reference", n_latent = 2L, n_layers = 1L,
+      n_hidden = 16L, max_epochs = 1L, chunk_size = 5L,
+      cell_set = "all", min_cells = 1L))
+  promoted <- scworkbench::wb_session_promote_current(state$bundle,
+    fit$session, outputs = c("model", "fit_summary"),
+    created_by = "phase6-source-authentication")
+  model_id <- promoted$promoted$artifact_id[
+    promoted$promoted$output == "model"][[1L]]
+  scworkbench::wb_session_discard(fit$session)
+  scworkbench::wb_close_bundle(state$bundle)
+  state$bundle <- NULL
+  for (attack in c("matrix_bytes", "model_tree", "linkage")) {
+    copy <- tempfile(paste0("latent-auth-", attack, "-"))
+    fs::dir_copy(state$root, copy)
+    on.exit(unlink(copy, recursive = TRUE, force = TRUE), add = TRUE)
+    damaged <- scworkbench::wb_open_bundle(copy)
+    if (identical(attack, "matrix_bytes")) {
+      fragment <- DBI::dbGetQuery(damaged$con,
+        "SELECT path FROM matrix_fragments WHERE matrix_id='ATAC_reference';")
+      stopifnot(nrow(fragment) == 1L)
+      target <- file.path(copy, fragment$path[[1L]], "val")
+      stopifnot(file.exists(target))
+      connection <- file(target, open = "ab")
+      writeBin(as.raw(1L), connection); close(connection)
+    } else if (identical(attack, "model_tree")) {
+      model <- scworkbench::wb_art_load(damaged, model_id,
+        expected_kind = "model_ref")
+      target <- file.path(model$model_tree_root, model$model_primary_path)
+      stopifnot(file.exists(target))
+      Sys.chmod(target, mode = "0644")
+      connection <- file(target, open = "ab")
+      writeBin(as.raw(1L), connection); close(connection)
+    } else {
+      stopifnot(DBI::dbExecute(damaged$con,
+        "UPDATE artifact_model_ref SET linkage_json='{}' WHERE artifact_id=?;",
+        params = list(model_id)) == 1L)
+    }
+    inventory <- function() {
+      files <- list.files(copy, recursive = TRUE, all.files = TRUE,
+        full.names = TRUE, no.. = TRUE)
+      files <- sort(files[file.exists(files) & !dir.exists(files)],
+        method = "radix")
+      # A failed preflight may refresh the source manifest or checkpoint
+      # SQLite's WAL. Compare logical table counts separately below.
+      files <- files[!substring(files, nchar(copy) + 2L) %in% c(
+        "manifest.json", "db/app.sqlite", "db/app.sqlite-wal",
+        "db/app.sqlite-shm")]
+      tables <- sort(DBI::dbListTables(damaged$con), method = "radix")
+      row_counts <- stats::setNames(vapply(tables, function(table)
+        as.integer(DBI::dbGetQuery(damaged$con,
+          paste0('SELECT COUNT(*) AS n FROM "', table, '";'))$n[[1L]]),
+        integer(1)), tables)
+      list(artifacts = nrow(scworkbench::wb_art_list(damaged)),
+        spaces = scworkbench::wb_spaces(damaged)$space_id,
+        heads = nrow(scworkbench::wb_prov_list_heads(damaged)),
+        row_counts = row_counts,
+        files = stats::setNames(unname(tools::md5sum(files)),
+          substring(files, nchar(copy) + 2L)))
+    }
+    before <- inventory()
+    rejected <- tryCatch(scworkbench::wb_session_run_op(
+      scworkbench::wb_session_new(), damaged,
+      "scwblatent::peakvi_project", inputs = list(
+        model = scworkbench::wb_ref_artifact(model_id, "model"),
+        query_matrix = "ATAC_query", space_id_out = "peakvi_query",
+        chunk_size = 4L, cell_set = "all", min_cells = 1L,
+        pickle_execution_trust = "operator_verified_source_v1")),
+      error = identity)
+    after <- inventory()
+    if (!identical(after, before)) {
+      changed <- union(names(before$files)[before$files != after$files[names(before$files)]],
+        setdiff(names(after$files), names(before$files)))
+      stop("PeakVI ", attack, " rejection left changed files: ",
+        paste(changed, collapse = ", "), "; output counts: ",
+        paste(unlist(before[1:3]), collapse = "/"), " -> ",
+        paste(unlist(after[1:3]), collapse = "/"))
+    }
+    stopifnot(inherits(rejected, "error"))
+    scworkbench::wb_close_bundle(damaged)
+  }
+  TRUE
+}
+
 # Prospective numerical policy: exact ordered cells/dimensions, finite
 # nonconstant latent coordinates, finite nondegenerate pairwise geometry, and
 # pairwise-distance Spearman >= 0.95 between old-core and pack embeddings.

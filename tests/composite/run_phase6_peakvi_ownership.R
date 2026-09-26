@@ -23,6 +23,7 @@ source(file.path(values[["SCWB_LATENT_PACK_SOURCE"]], "tests",
   "test_peakvi_pilot_contract.R"))
 tests <- c("test_a_peakvi_missing_dependency_and_pack_predispatch_contract",
   "test_peakvi_cpu_fit_project_contract",
+  "test_peakvi_registered_source_authentication_contract",
   "test_peakvi_old_core_numerical_policy_contract")
 for (name in tests) {
   cat("RUN ", name, "\n", sep = "")
