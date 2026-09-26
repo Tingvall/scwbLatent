@@ -7,5 +7,5 @@ Description: CPU PeakVI fit and transfer projection through ABI-v3 authenticated
 License: MIT + file LICENSE
 Encoding: UTF-8
 Imports: scworkbench, Matrix, jsonlite, digest
-Suggests: fs, testthat
+Suggests: fs, testthat, DBI
 RoxygenNote: 7.3.3
