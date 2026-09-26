@@ -273,6 +273,56 @@ test_peakvi_registered_source_authentication_contract <- function() {
   TRUE
 }
 
+test_peakvi_staged_receipt_closure_rejection_contract <- function() {
+  for (attack in c("receipt_identity", "missing_sibling")) {
+    state <- .latent_test_fixture()
+    inventory <- function() {
+      files <- list.files(state$root, recursive = TRUE, all.files = TRUE,
+        full.names = TRUE, no.. = TRUE)
+      files <- sort(files[file.exists(files) & !dir.exists(files)],
+        method = "radix")
+      relative <- substring(files, nchar(state$root) + 2L)
+      files <- files[!relative %in% c("manifest.json", "db/app.sqlite",
+        "db/app.sqlite-wal", "db/app.sqlite-shm")]
+      tables <- sort(DBI::dbListTables(state$bundle$con), method = "radix")
+      list(artifacts = scworkbench::wb_art_list(state$bundle)$artifact_id,
+        spaces = scworkbench::wb_spaces(state$bundle)$space_id,
+        heads = scworkbench::wb_prov_list_heads(state$bundle),
+        row_counts = stats::setNames(vapply(tables, function(table)
+          as.integer(DBI::dbGetQuery(state$bundle$con,
+            paste0('SELECT COUNT(*) AS n FROM "', table, '";'))$n[[1L]]),
+          integer(1)), tables),
+        files = stats::setNames(unname(tools::md5sum(files)),
+          substring(files, nchar(state$root) + 2L)))
+    }
+    before <- inventory()
+    fit <- scworkbench::wb_session_run_op(scworkbench::wb_session_new(),
+      state$bundle, "scwblatent::peakvi_fit", inputs = list(
+        matrix = "ATAC_reference", n_latent = 2L, n_layers = 1L,
+        n_hidden = 16L, max_epochs = 1L, chunk_size = 5L,
+        cell_set = "all", min_cells = 1L))
+    record <- fit$run$operation_pack_transition
+    path <- file.path(scworkbench:::.wb_operation_pack_v2_store(
+      fit$session$staging_bundle), record$transition_id, "receipt.json")
+    receipt <- jsonlite::read_json(path, simplifyVector = FALSE)
+    if (identical(attack, "receipt_identity")) {
+      receipt$receipt_identity <- paste0("sha256:", strrep("0", 64L))
+    } else {
+      receipt$outputs <- Filter(function(output)
+        !identical(output$name, "fit_summary"), receipt$outputs)
+      stopifnot(length(receipt$outputs) == 2L)
+    }
+    jsonlite::write_json(receipt, path, auto_unbox = TRUE, null = "null")
+    rejected <- tryCatch(scworkbench::wb_session_promote_current(
+      state$bundle, fit$session, outputs = c("model", "fit_summary"),
+      created_by = "phase6-receipt-fault"), error = identity)
+    stopifnot(inherits(rejected, "error"), identical(inventory(), before))
+    scworkbench::wb_session_discard(fit$session)
+    .latent_test_cleanup(state)
+  }
+  TRUE
+}
+
 # Prospective numerical policy: exact ordered cells/dimensions, finite
 # nonconstant latent coordinates, finite nondegenerate pairwise geometry, and
 # pairwise-distance Spearman >= 0.95 between old-core and pack embeddings.
