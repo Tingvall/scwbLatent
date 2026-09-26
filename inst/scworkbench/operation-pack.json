@@ -98,8 +98,11 @@
         "chunk_size": {"type": "integer", "minimum": 1, "maximum": 4096,
           "default": 256},
         "batch_key": {"type": "null", "default": null},
-        "use_gpu": {"type": "boolean", "enum": [false], "default": false}
-      }, "required": ["space_id_out"], "additionalProperties": false},
+        "use_gpu": {"type": "boolean", "enum": [false], "default": false},
+        "pickle_execution_trust": {"type": "string",
+          "enum": ["operator_verified_source_v1"]}
+      }, "required": ["space_id_out", "pickle_execution_trust"],
+        "additionalProperties": false},
       "typed_slice_reads": [{
         "name": "query_chunks", "input": "query_matrix",
         "reader": "read_typed_slices", "kind": "matrix",

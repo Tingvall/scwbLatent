@@ -1,16 +1,23 @@
 .latent_test_fixture <- function() {
-  library <- tempfile("latent-test-lib-"); dir.create(library)
-  package_root <- normalizePath(".", winslash = "/", mustWork = TRUE)
-  log <- tempfile("latent-install-", fileext = ".log")
-  status <- system2(file.path(R.home("bin"), "R"), c("CMD", "INSTALL",
-    paste0("--library=", shQuote(library)), shQuote(package_root)),
-    stdout = log, stderr = log)
-  if (!identical(as.integer(status), 0L))
-    stop(paste(readLines(log, warn = FALSE), collapse = "\n"))
+  library <- getOption("scwblatent.phase6.fixture_library", NULL)
+  if (is.null(library) || !dir.exists(library)) {
+    library <- tempfile("latent-test-lib-"); dir.create(library)
+    package_root <- normalizePath(".", winslash = "/", mustWork = TRUE)
+    log <- tempfile("latent-install-", fileext = ".log")
+    status <- system2(file.path(R.home("bin"), "R"), c("CMD", "INSTALL",
+      paste0("--library=", shQuote(library)), shQuote(package_root)),
+      stdout = log, stderr = log)
+    if (!identical(as.integer(status), 0L))
+      stop(paste(readLines(log, warn = FALSE), collapse = "\n"))
+    options(scwblatent.phase6.fixture_library = library)
+  }
   old <- .libPaths(); .libPaths(c(library, old))
-  manifest <- system.file("scworkbench", "operation-pack.json",
-    package = "scwbLatent", lib.loc = library)
-  scworkbench::wb_operation_pack_activate(manifest, lib.loc = library)
+  if (inherits(tryCatch(scworkbench::wb_operation_pack_inspect(
+      "scwblatent"), error = identity), "error")) {
+    manifest <- system.file("scworkbench", "operation-pack.json",
+      package = "scwbLatent", lib.loc = library)
+    scworkbench::wb_operation_pack_activate(manifest, lib.loc = library)
+  }
   root <- tempfile("latent-bundle-")
   bundle <- scworkbench::wb_init_bundle(root)
   reference <- paste0("ref_", seq_len(24L))
@@ -33,11 +40,8 @@
 
 .latent_test_cleanup <- function(state) {
   try(scworkbench::wb_close_bundle(state$bundle), silent = TRUE)
-  try(scworkbench::wb_operation_pack_unload("scwblatent"), silent = TRUE)
-  if ("scwbLatent" %in% loadedNamespaces())
-    try(unloadNamespace("scwbLatent"), silent = TRUE)
+  # Once executed, the package remains active for other tests in this process.
   .libPaths(state$old)
-  unlink(state$library, recursive = TRUE, force = TRUE)
   unlink(state$root, recursive = TRUE, force = TRUE)
 }
 
@@ -88,14 +92,24 @@ test_peakvi_cpu_fit_project_contract <- function() {
     model$model_linkage))
   scworkbench::wb_close_bundle(state$bundle)
   state$bundle <- scworkbench::wb_open_bundle(relocated)
-  project_once <- function(query_matrix = "ATAC_query")
+  project_once <- function(query_matrix = "ATAC_query",
+      trust = "operator_verified_source_v1")
     scworkbench::wb_session_run_op(scworkbench::wb_session_new(),
     state$bundle, "scwblatent::peakvi_project", inputs = list(
       model = scworkbench::wb_ref_artifact(model_id, "model"),
       query_matrix = query_matrix, space_id_out = "peakvi_query",
-      chunk_size = 4L, cell_set = "all", min_cells = 1L))
+      chunk_size = 4L, cell_set = "all", min_cells = 1L,
+      pickle_execution_trust = trust))
   baseline <- list(artifacts = nrow(scworkbench::wb_art_list(state$bundle)),
     spaces = scworkbench::wb_spaces(state$bundle)$space_id)
+  for (trust in list(NULL, "unverified_source")) {
+    rejected <- tryCatch(project_once(trust = trust), error = identity)
+    stopifnot(inherits(rejected, "error"),
+      identical(nrow(scworkbench::wb_art_list(state$bundle)),
+        baseline$artifacts),
+      identical(scworkbench::wb_spaces(state$bundle)$space_id,
+        baseline$spaces))
+  }
   overlapping <- tryCatch(project_once("ATAC_reference"), error = identity)
   stopifnot(inherits(overlapping, "error"),
     grepl("overlaps the fitted reference axis",
@@ -141,7 +155,8 @@ test_peakvi_cpu_fit_project_contract <- function() {
 }
 
 # Prospective numerical policy: exact ordered cells/dimensions, finite
-# nonconstant latent coordinates, and finite nondegenerate pairwise geometry.
+# nonconstant latent coordinates, finite nondegenerate pairwise geometry, and
+# pairwise-distance Spearman >= 0.95 between old-core and pack embeddings.
 # Rotations, signs, coordinates, model bytes and hashes are not equated.
 test_peakvi_old_core_numerical_policy_contract <- function() {
   state <- .latent_test_fixture()
@@ -175,12 +190,22 @@ test_peakvi_old_core_numerical_policy_contract <- function() {
     all(is.finite(stats::dist(new_values))),
     as.numeric(stats::median(stats::dist(old_values))) > 0,
     as.numeric(stats::median(stats::dist(new_values))) > 0)
+  # Pairwise ranks ignore sign/rotation and scale while testing whether the
+  # two implementations retain the same neighborhood geometry
+  # after the deliberately tiny one-epoch fit.
+  distance_rank_correlation <- suppressWarnings(stats::cor(
+    as.numeric(stats::dist(old_values)),
+    as.numeric(stats::dist(new_values)), method = "spearman"))
+  message("PeakVI old/new pairwise-distance Spearman = ",
+    format(distance_rank_correlation, digits = 5L))
+  stopifnot(is.finite(distance_rank_correlation),
+    distance_rank_correlation >= 0.95)
   legacy$session <- scworkbench::wb_session_discard(legacy$session)
   modern$session <- scworkbench::wb_session_discard(modern$session)
   TRUE
 }
 
-test_peakvi_missing_dependency_and_pack_predispatch_contract <- function() {
+test_a_peakvi_missing_dependency_and_pack_predispatch_contract <- function() {
   state <- .latent_test_fixture()
   on.exit(.latent_test_cleanup(state), add = TRUE)
   scworkbench::wb_operation_pack_unload("scwblatent")

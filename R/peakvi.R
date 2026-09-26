@@ -75,6 +75,9 @@
 }
 
 .latent_peakvi_project <- function(readers, writers, params, context) {
+  if (!identical(as.character(params$pickle_execution_trust %||% "")[1],
+      "operator_verified_source_v1"))
+    .latent_fail("project requires explicit operator verification of the model source before pickle-capable loading")
   model <- readers$fitted_model()
   if (is.null(model$fitted_cells) ||
       is.null(model$fitted_features) ||

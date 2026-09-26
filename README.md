@@ -11,6 +11,11 @@ typed slices. It emits a fitted file-backed latent space, contained PeakVI
 model, and fit summary in one promotion group. `peakvi_project` consumes a
 G1-authenticated model and disjoint query-matrix slices, loads the retained
 model without refitting, and emits a new immutable query space plus summary.
+Loading scvi's `model.pt` is pickle-capable; callers must explicitly provide
+`pickle_execution_trust = "operator_verified_source_v1"` after independently
+verifying the model's source. Core byte hashes authenticate the retained tree
+but do not make pickle deserialization safe, and this declaration is not a
+signature or sandbox.
 The caller chooses the query `space_id_out`; collisions reject and overwrite
 is prohibited. The core issues output identities, validates source/model
 linkage and complete receipts, and owns publication and rollback.
@@ -27,5 +32,5 @@ not a large-data or GPU qualification.
 fields require a future authenticated typed metadata capability. GPU is
 out of scope. Scientific comparison to the old core uses a prospective
 numerical policy (ordered cells and latent dimensions equal; finite,
-nonconstant coordinates and nondegenerate pairwise geometry), not byte- or
-hash-identity claims.
+nonconstant coordinates, nondegenerate pairwise geometry, and pairwise-distance
+Spearman correlation at least 0.95), not byte- or hash-identity claims.
