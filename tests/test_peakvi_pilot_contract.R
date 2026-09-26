@@ -2,6 +2,11 @@
   stopifnot(!any(c("peakvi_fit", "peakvi_project") %in%
     scworkbench::wb_list_ops()))
   library <- getOption("scwblatent.phase6.fixture_library", NULL)
+  if (is.null(library)) {
+    installed <- tryCatch(find.package("scwbLatent"),
+      error = function(e) "")
+    if (nzchar(installed)) library <- dirname(installed)
+  }
   if (is.null(library) || !dir.exists(library)) {
     library <- tempfile("latent-test-lib-"); dir.create(library)
     package_root <- normalizePath(".", winslash = "/", mustWork = TRUE)
