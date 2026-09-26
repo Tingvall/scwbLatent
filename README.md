@@ -1,8 +1,10 @@
-# scwbLatent (Phase 6 pilot)
+# scwbLatent (Phase 6 CPU PeakVI owner)
 
-This independent R operation pack contains `scwblatent::peakvi_fit` and
-`scwblatent::peakvi_project`. It is an ABI-v3 CPU pilot, not a replacement for
-historical PeakVI runs. Activate the installed pack with
+This independent R operation pack is the sole current owner of
+`scwblatent::peakvi_fit` and `scwblatent::peakvi_project`. The unqualified
+core implementations have been removed. It retains the accepted ABI-v3 CPU
+pilot calculation, but does not rewrite or reinterpret historical PeakVI
+runs. Activate the installed pack with
 `wb_operation_pack_activate()` after setting `SCWB_LATENT_PYTHON` to a Python
 environment with `scvi-tools`, `anndata`, `scipy`, and CPU `torch`.
 
@@ -34,3 +36,8 @@ out of scope. Scientific comparison to the old core uses a prospective
 numerical policy (ordered cells and latent dimensions equal; finite,
 nonconstant coordinates, nondegenerate pairwise geometry, and pairwise-distance
 Spearman correlation at least 0.95), not byte- or hash-identity claims.
+The old-core comparator runs the exact accepted pilot core in a separate
+process (`SCWB_LATENT_LEGACY_CORE_SOURCE`) and compares the current pack
+through registered dispatch. The relocated legacy core tests under
+`tests/migration_evidence/` document the retired route; they are not a second
+production owner or part of the live pack test suite.

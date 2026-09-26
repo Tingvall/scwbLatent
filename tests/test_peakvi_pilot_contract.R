@@ -1,4 +1,6 @@
 .latent_test_fixture <- function() {
+  stopifnot(!any(c("peakvi_fit", "peakvi_project") %in%
+    scworkbench::wb_list_ops()))
   library <- getOption("scwblatent.phase6.fixture_library", NULL)
   if (is.null(library) || !dir.exists(library)) {
     library <- tempfile("latent-test-lib-"); dir.create(library)
@@ -18,6 +20,9 @@
       package = "scwbLatent", lib.loc = library)
     scworkbench::wb_operation_pack_activate(manifest, lib.loc = library)
   }
+  registered <- scworkbench::wb_list_ops()
+  stopifnot(sum(registered == "scwblatent::peakvi_fit") == 1L,
+    sum(registered == "scwblatent::peakvi_project") == 1L)
   root <- tempfile("latent-bundle-")
   bundle <- scworkbench::wb_init_bundle(root)
   reference <- paste0("ref_", seq_len(24L))
@@ -159,28 +164,41 @@ test_peakvi_cpu_fit_project_contract <- function() {
 # pairwise-distance Spearman >= 0.95 between old-core and pack embeddings.
 # Rotations, signs, coordinates, model bytes and hashes are not equated.
 test_peakvi_old_core_numerical_policy_contract <- function() {
+  source <- Sys.getenv("SCWB_LATENT_LEGACY_CORE_SOURCE", unset = "")
+  if (!nzchar(source) || !dir.exists(source))
+    stop("Set SCWB_LATENT_LEGACY_CORE_SOURCE to the accepted pilot core checkout.")
+  revision <- trimws(system2("git", c("-C", shQuote(source), "rev-parse",
+    "HEAD"), stdout = TRUE))
+  stopifnot(identical(revision,
+    "d624cfd0cc1b84440681967fc30a214004e2c591"))
+  python <- Sys.getenv("SCWB_LATENT_PYTHON", unset = "")
+  stopifnot(nzchar(python), file.exists(python))
+  oracle <- tempfile("old-core-peakvi-", fileext = ".rds")
+  log <- tempfile("old-core-peakvi-", fileext = ".log")
+  on.exit(unlink(c(oracle, log), force = TRUE), add = TRUE)
+  script <- normalizePath("tests/composite/old_core_peakvi_oracle.R",
+    winslash = "/", mustWork = TRUE)
+  status <- system2(file.path(R.home("bin"), "Rscript"),
+    c(shQuote(script), shQuote(source), shQuote(oracle)),
+    stdout = log, stderr = log,
+    env = paste0("SCWORKBENCH_PYBENCH_PYTHON=", shQuote(python)))
+  if (!identical(as.integer(status), 0L))
+    stop(paste(readLines(log, warn = FALSE), collapse = "\n"))
+  legacy <- readRDS(oracle)
   state <- .latent_test_fixture()
   on.exit(.latent_test_cleanup(state), add = TRUE)
-  old_python <- Sys.getenv("SCWORKBENCH_PYBENCH_PYTHON", unset = NA_character_)
-  on.exit(if (is.na(old_python)) Sys.unsetenv("SCWORKBENCH_PYBENCH_PYTHON")
-    else Sys.setenv(SCWORKBENCH_PYBENCH_PYTHON = old_python), add = TRUE)
-  Sys.setenv(SCWORKBENCH_PYBENCH_PYTHON = Sys.getenv("SCWB_LATENT_PYTHON"))
-  common <- list(matrix = "ATAC_reference", n_latent = 2L,
-    n_layers = 1L, n_hidden = 16L, max_epochs = 1L,
-    cell_set = "all", min_cells = 1L)
-  legacy <- scworkbench::wb_session_run_op(scworkbench::wb_session_new(),
-    state$bundle, "peakvi_fit", inputs = c(common,
-      list(space_id_out = "legacy_peakvi")))
   modern <- scworkbench::wb_session_run_op(scworkbench::wb_session_new(),
-    state$bundle, "scwblatent::peakvi_fit", inputs = c(common,
-      list(chunk_size = 5L)))
-  old_values <- as.matrix(scworkbench::wb_space(
-    scworkbench::wb_session_view(legacy$session), "legacy_peakvi")[-1L])
+    state$bundle, "scwblatent::peakvi_fit", inputs = list(
+      matrix = "ATAC_reference", n_latent = 2L, n_layers = 1L,
+      n_hidden = 16L, max_epochs = 1L, chunk_size = 5L,
+      cell_set = "all", min_cells = 1L))
   new_values <- as.matrix(scworkbench::wb_space(
     scworkbench::wb_session_view(modern$session),
     modern$run$outputs$space$space_id)[-1L])
+  old_values <- legacy$coordinates
   stopifnot(identical(dim(old_values), c(24L, 2L)),
     identical(dim(new_values), dim(old_values)),
+    identical(legacy$cells, state$reference),
     identical(rownames(old_values), state$reference),
     identical(rownames(new_values), state$reference),
     all(is.finite(old_values)), all(is.finite(new_values)),
@@ -190,9 +208,6 @@ test_peakvi_old_core_numerical_policy_contract <- function() {
     all(is.finite(stats::dist(new_values))),
     as.numeric(stats::median(stats::dist(old_values))) > 0,
     as.numeric(stats::median(stats::dist(new_values))) > 0)
-  # Pairwise ranks ignore sign/rotation and scale while testing whether the
-  # two implementations retain the same neighborhood geometry
-  # after the deliberately tiny one-epoch fit.
   distance_rank_correlation <- suppressWarnings(stats::cor(
     as.numeric(stats::dist(old_values)),
     as.numeric(stats::dist(new_values)), method = "spearman"))
@@ -200,20 +215,38 @@ test_peakvi_old_core_numerical_policy_contract <- function() {
     format(distance_rank_correlation, digits = 5L))
   stopifnot(is.finite(distance_rank_correlation),
     distance_rank_correlation >= 0.95)
-  legacy$session <- scworkbench::wb_session_discard(legacy$session)
-  modern$session <- scworkbench::wb_session_discard(modern$session)
+  scworkbench::wb_session_discard(modern$session)
   TRUE
 }
 
 test_a_peakvi_missing_dependency_and_pack_predispatch_contract <- function() {
   state <- .latent_test_fixture()
   on.exit(.latent_test_cleanup(state), add = TRUE)
+  payload_inventory <- function() {
+    paths <- list.files(state$root, recursive = TRUE, all.files = TRUE,
+      full.names = TRUE, no.. = TRUE)
+    paths <- sort(paths[file.exists(paths) & !dir.exists(paths)],
+      method = "radix")
+    stats::setNames(unname(tools::md5sum(paths)),
+      substring(paths, nchar(state$root) + 2L))
+  }
+  before <- list(artifacts = nrow(scworkbench::wb_art_list(state$bundle)),
+    spaces = scworkbench::wb_spaces(state$bundle)$space_id,
+    heads = nrow(scworkbench::wb_prov_list_heads(state$bundle)),
+    files = payload_inventory())
   scworkbench::wb_operation_pack_unload("scwblatent")
+  stopifnot(!any(c("peakvi_fit", "peakvi_project",
+    "scwblatent::peakvi_fit", "scwblatent::peakvi_project") %in%
+    scworkbench::wb_list_ops()))
   absent <- tryCatch(scworkbench::wb_session_run_op(
     scworkbench::wb_session_new(), state$bundle,
     "scwblatent::peakvi_fit", inputs = list(matrix = "ATAC_reference",
       n_latent = 2L, cell_set = "all", min_cells = 1L)), error = identity)
   stopifnot(inherits(absent, "error"))
+  absent_project <- tryCatch(scworkbench::wb_session_run_op(
+    scworkbench::wb_session_new(), state$bundle,
+    "scwblatent::peakvi_project", inputs = list()), error = identity)
+  stopifnot(inherits(absent_project, "error"))
   original <- Sys.getenv("SCWB_LATENT_PYTHON", unset = NA_character_)
   on.exit(if (is.na(original)) Sys.unsetenv("SCWB_LATENT_PYTHON")
     else Sys.setenv(SCWB_LATENT_PYTHON = original), add = TRUE)
@@ -226,6 +259,13 @@ test_a_peakvi_missing_dependency_and_pack_predispatch_contract <- function() {
   stopifnot(inherits(missing, "error"),
     !"scwblatent::peakvi_fit" %in% as.character(
       unlist(scworkbench::wb_list_ops(), use.names = FALSE)),
-    nrow(scworkbench::wb_art_list(state$bundle)) == 0L)
+    !"scwblatent::peakvi_project" %in% scworkbench::wb_list_ops(),
+    identical(nrow(scworkbench::wb_art_list(state$bundle)),
+      before$artifacts),
+    identical(scworkbench::wb_spaces(state$bundle)$space_id,
+      before$spaces),
+    identical(nrow(scworkbench::wb_prov_list_heads(state$bundle)),
+      before$heads),
+    identical(payload_inventory(), before$files))
   TRUE
 }
