@@ -11,7 +11,7 @@
   dir.create(file.path(root, "chunks"), recursive = TRUE,
     showWarnings = FALSE)
   writeLines(features, file.path(root, "features.txt"), useBytes = TRUE)
-  chunks <- scworkbench::wb_partition_axis(cells, chunk_size)
+  chunks <- unname(split(cells, ceiling(seq_along(cells) / chunk_size)))
   entries <- vector("list", length(chunks))
   digests <- list()
   maximum_bytes <- 0
@@ -24,7 +24,8 @@
         !identical(as.integer(dim(piece$values)),
           as.integer(c(length(features), length(selected)))))
       .latent_fail("typed matrix chunk differs from authenticated axes")
-    maximum_bytes <- max(maximum_bytes, as.numeric(object.size(piece$values)))
+    maximum_bytes <- max(maximum_bytes,
+      as.numeric(utils::object.size(piece$values)))
     maximum_elements <- max(maximum_elements,
       as.double(length(features)) * as.double(length(selected)))
     prefix <- sprintf("chunks/%06d", i)
