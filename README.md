@@ -1,9 +1,10 @@
-# scwbLatent (Phase 6 CPU PeakVI and scVI owner)
+# scwbLatent (Phase 6 CPU latent methods)
 
 This independent R operation pack is the sole current owner of
 `scwblatent::peakvi_fit`, `scwblatent::peakvi_project`, and
-`scwblatent::scvi_train`. The unqualified core implementations have been
-removed. It retains the accepted ABI-v3 CPU
+`scwblatent::scvi_train`, and `scwblatent::model_bound_latent_union`.
+The unqualified core implementations have been removed. It retains the
+accepted ABI-v3 CPU
 pilot calculation, but does not rewrite or reinterpret historical PeakVI
 runs. Activate the installed pack with
 `wb_operation_pack_activate()` after setting `SCWB_LATENT_PYTHON` to a Python
@@ -22,6 +23,18 @@ signature or sandbox.
 The caller chooses the query `space_id_out`; collisions reject and overwrite
 is prohibited. The core issues output identities, validates source/model
 linkage and complete receipts, and owns publication and rollback.
+
+`model_bound_latent_union` reads complete, separately authenticated fitted
+and projected space axes. Its producer-lineage read requires a retained
+projection summary and query space from the same accepted projection run,
+with that run consuming the retained model paired to the fitted space.
+The pack combines the two coordinate matrices in the core-sealed G7 output
+order and writes a linked space and summary; it performs no fitting or
+projection. Staged producer lineage is rejected. The qualified union accepts
+PeakVI and scVI model identities, while the current real producer fixture
+covers PeakVI. Its old-core comparison policy requires exactly equal ordered
+cell IDs, coordinate values, and summary fields, and does not compare legacy
+metadata hashes.
 
 The pack stages at most `n_features * chunk_size` R matrix elements per
 typed read. It writes Matrix Market chunks to a private temporary directory;

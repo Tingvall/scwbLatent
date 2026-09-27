@@ -36,5 +36,7 @@ register_operation_pack <- function() {
       package = "scwbLatent"),
     list(`scwblatent::scvi_train` = .latent_scvi_train,
       `scwblatent::peakvi_fit` = .latent_peakvi_fit,
-      `scwblatent::peakvi_project` = .latent_peakvi_project))
+      `scwblatent::peakvi_project` = .latent_peakvi_project,
+      `scwblatent::model_bound_latent_union` =
+        .latent_model_bound_latent_union))
 }
