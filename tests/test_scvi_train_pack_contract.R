@@ -306,6 +306,67 @@ test_scvi_count_and_covariate_authority_rejection_contract <- function() {
   TRUE
 }
 
+test_scvi_authenticated_matrix_change_rejects_before_dispatch_contract <- function() {
+  fixture <- .latent_scvi_fixture()
+  on.exit({options(scworkbench.operation_pack_v2_test_hook = NULL);
+    .latent_scvi_fixture_close(fixture)}, add = TRUE)
+  baseline <- .latent_scvi_source_only(fixture$bundle)
+  relative <- as.character(scworkbench::wb_matrices(fixture$bundle)$path[[1L]])
+  source_value_file <- file.path(fixture$root, relative, "val")
+  source_sha <- digest::digest(file = source_value_file, algo = "sha256")
+  run <- function(session) scworkbench::wb_session_run_op(session,
+    fixture$bundle, "scwblatent::scvi_train", inputs = list(
+      matrix = "RNA_counts", n_latent = 2L, n_layers = 1L,
+      n_hidden = 16L, max_epochs = 1L, chunk_size = 6L,
+      batch_key = "batch", cell_set = "all", min_cells = 1L))
+  for (mode in c("registry", "payload")) {
+    staged <- scworkbench:::.wb_session_stage_bundle(fixture$bundle,
+      scworkbench::wb_session_new())
+    session <- staged$session
+    dispatched <- FALSE
+    options(scworkbench.operation_pack_v2_test_hook = function(event, ...) {
+      if (identical(event, "staged") && identical(mode, "registry"))
+        DBI::dbExecute(staged$bundle$con,
+          "UPDATE matrices SET layer='lognorm' WHERE matrix_id='RNA_counts';")
+      if (identical(event, "staged") && identical(mode, "payload")) {
+        target <- file.path(staged$bundle$dir, relative)
+        stopifnot(nzchar(Sys.readlink(file.path(target, "val"))))
+        values <- as.matrix(scworkbench::wb_matrix(staged$bundle,
+          "RNA_counts"))
+        original <- values[1L, 1L]
+        values[1L, 1L] <- values[1L, 1L] + 1
+        unlink(target, recursive = TRUE)
+        BPCells::write_matrix_dir(Matrix::Matrix(values, sparse = TRUE),
+          target)
+        observed <- as.matrix(scworkbench::wb_matrix(staged$bundle,
+          "RNA_counts"))
+        stopifnot(isTRUE(all.equal(as.numeric(observed[1L, 1L]),
+          as.numeric(original) + 1)))
+      }
+      if (identical(event, "before_dispatch")) dispatched <<- TRUE
+    })
+    failure <- tryCatch(run(session), error = identity)
+    options(scworkbench.operation_pack_v2_test_hook = NULL)
+    stopifnot(identical(.latent_scvi_source_only(fixture$bundle), baseline),
+      identical(digest::digest(file = source_value_file, algo = "sha256"),
+        source_sha))
+    if (identical(mode, "payload") && !inherits(failure, "error"))
+      stop("G2_AUTHORITY_GAP: stage-private matrix values changed after ",
+        "authentication but scVI reached dispatch and returned outputs.",
+        call. = FALSE)
+    stopifnot(inherits(failure, "error"), !dispatched,
+      identical(as.character(failure$code),
+        "PYBENCH_INPUT_IDENTITY_MISMATCH"))
+    session <- scworkbench::wb_session_discard(session)
+  }
+  retry <- run(scworkbench::wb_session_new())
+  stopifnot(identical(sort(names(retry$run$outputs)),
+    c("fit_summary", "model", "space")))
+  retry$session <- scworkbench::wb_session_discard(retry$session)
+  stopifnot(identical(.latent_scvi_source_only(fixture$bundle), baseline))
+  TRUE
+}
+
 test_scvi_publication_fault_zero_residue_and_retry_contract <- function() {
   fixture <- .latent_scvi_fixture()
   on.exit({options(scworkbench.operation_pack_v2_test_hook = NULL);

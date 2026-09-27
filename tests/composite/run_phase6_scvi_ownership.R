@@ -34,6 +34,7 @@ tests <- c("test_a_scvi_missing_pack_and_dependency_predispatch_contract",
   "test_scvi_cpu_fit_metadata_and_promotion_contract",
   "test_scvi_separate_categorical_and_continuous_covariate_contract",
   "test_scvi_count_and_covariate_authority_rejection_contract",
+  "test_scvi_authenticated_matrix_change_rejects_before_dispatch_contract",
   "test_scvi_publication_fault_zero_residue_and_retry_contract",
   "test_scvi_incomplete_model_tree_rejects_promotion_contract",
   "test_scvi_durable_process_replacement_and_model_integrity_contract")
