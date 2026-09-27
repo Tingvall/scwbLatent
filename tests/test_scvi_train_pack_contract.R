@@ -176,11 +176,20 @@ test_scvi_cpu_fit_metadata_and_promotion_contract <- function() {
     identical(as.integer(summary$n_latent[[1]]), 2L),
     identical(as.integer(summary$n_hidden[[1]]), 16L),
     identical(as.integer(summary$n_layers[[1]]), 1L),
+    identical(as.integer(summary$max_epochs[[1]]), 1L),
+    identical(as.integer(summary$max_chunk_cells[[1]]), 6L),
+    as.numeric(summary$max_chunk_elements[[1]]) <= 32 * 6,
     isTRUE(all.equal(as.numeric(summary$dropout[[1]]), 0.1)),
     isTRUE(all.equal(as.numeric(summary$learning_rate[[1]]), 0.001)),
     isTRUE(summary$early_stopping[[1]]),
+    isFALSE(summary$use_gpu[[1]]),
+    identical(as.character(summary$categorical_covariates_json[[1]]),
+      '["condition"]'),
+    identical(as.character(summary$continuous_covariates_json[[1]]),
+      '["quality"]'),
     nzchar(as.character(summary$scvi_version[[1]])),
-    nzchar(summary$metadata_sha256[[1]]))
+    grepl("^[0-9a-f]{64}$", summary$latent_sha256[[1]]),
+    grepl("^[0-9a-f]{64}$", summary$metadata_sha256[[1]]))
   model <- scworkbench::wb_art_load(fixture$bundle, model_id,
     expected_kind = "model_ref")
   stopifnot(identical(model$engine, "scvi"),

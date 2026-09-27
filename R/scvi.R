@@ -94,9 +94,11 @@
       metadata_sha256 = staged$digests[["cell_metadata.json"]],
       batch_key = as.character(params$batch_key %||% "")[1],
       categorical_covariates_json = jsonlite::toJSON(
-        request$categorical_covariates, auto_unbox = FALSE),
+        as.character(unlist(request$categorical_covariates,
+          use.names = FALSE)), auto_unbox = FALSE),
       continuous_covariates_json = jsonlite::toJSON(
-        request$continuous_covariates, auto_unbox = FALSE),
+        as.character(unlist(request$continuous_covariates,
+          use.names = FALSE)), auto_unbox = FALSE),
       max_epochs = as.integer(params$max_epochs),
       n_hidden = as.integer(params$n_hidden),
       n_layers = as.integer(params$n_layers),
