@@ -1,4 +1,7 @@
-source("tests/test_peakvi_pilot_contract.R", local = TRUE)
+peakvi_test_path <- if (file.exists(file.path("tests",
+    "test_peakvi_pilot_contract.R"))) file.path("tests",
+  "test_peakvi_pilot_contract.R") else "test_peakvi_pilot_contract.R"
+source(peakvi_test_path, local = TRUE)
 
 test_latent_union_retained_producer_contract <- function() {
   state <- .latent_test_fixture()
