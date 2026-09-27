@@ -1,8 +1,9 @@
-# scwbLatent (Phase 6 CPU PeakVI owner)
+# scwbLatent (Phase 6 CPU PeakVI and scVI owner)
 
 This independent R operation pack is the sole current owner of
-`scwblatent::peakvi_fit` and `scwblatent::peakvi_project`. The unqualified
-core implementations have been removed. It retains the accepted ABI-v3 CPU
+`scwblatent::peakvi_fit`, `scwblatent::peakvi_project`, and
+`scwblatent::scvi_train`. The unqualified core implementations have been
+removed. It retains the accepted ABI-v3 CPU
 pilot calculation, but does not rewrite or reinterpret historical PeakVI
 runs. Activate the installed pack with
 `wb_operation_pack_activate()` after setting `SCWB_LATENT_PYTHON` to a Python
@@ -30,14 +31,17 @@ cell/feature counts, and the returned latent-file checksum. The private
 Python computation materializes its AnnData working matrix, so this pilot is
 not a large-data or GPU qualification.
 
-`batch_key` is deliberately restricted to null. Non-null batch/covariate
-fields require a future authenticated typed metadata capability. GPU is
-out of scope. Scientific comparison to the old core uses a prospective
-numerical policy (ordered cells and latent dimensions equal; finite,
-nonconstant coordinates, nondegenerate pairwise geometry, and pairwise-distance
-Spearman correlation at least 0.95), not byte- or hash-identity claims.
-The old-core comparator runs the exact accepted pilot core in a separate
-process (`SCWB_LATENT_LEGACY_CORE_SOURCE`) and compares the current pack
-through registered dispatch. The relocated legacy core tests under
+PeakVI `batch_key` remains deliberately restricted to null. By contrast,
+`scvi_train` receives core-resolved, typed, exactly ordered batch,
+categorical and continuous metadata in an authenticated snapshot. Its matrix
+grant declares the nonnegative-integer policy and the private CPU scVI helper
+cannot access bundle storage. Its fit publishes a latent space, contained
+model and summary in one atomic closure. GPU is out of scope. Scientific
+comparison to the old core uses a prospective
+numerical policy (ordered cells and latent dimensions equal, finite
+coordinates, and pairwise-distance Spearman correlation at least 0.9),
+not byte- or hash-identity claims. Its frozen old-core fixture is in
+`tests/fixtures/scvi_old_core_reference.json`; the pack comparator exercises
+registered dispatch. The relocated PeakVI legacy tests under
 `tests/migration_evidence/` document the retired route; they are not a second
 production owner or part of the live pack test suite.

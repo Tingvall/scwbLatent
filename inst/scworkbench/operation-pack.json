@@ -12,6 +12,93 @@
   "entry_point": "scwbLatent::register_operation_pack",
   "operations": [
     {
+      "name": "scvi_train",
+      "qualified_name": "scwblatent::scvi_train",
+      "title": "scVI CPU fit",
+      "description": "Fit a CPU scVI model from authenticated count-like matrix chunks and ordered cell metadata, publishing a contained model, latent space, and fit summary.",
+      "runner": ".latent_scvi_train",
+      "inputs": [{"name": "matrix", "kind": "matrix", "required": true,
+        "alignment": "cell_and_feature_ordered"}],
+      "params_schema": {"type": "object", "properties": {
+        "n_latent": {"type": "integer", "minimum": 2, "maximum": 1024, "default": 30},
+        "n_layers": {"type": "integer", "minimum": 1, "maximum": 16, "default": 2},
+        "n_hidden": {"type": "integer", "minimum": 1, "maximum": 8192, "default": 128},
+        "dropout": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.1},
+        "max_epochs": {"type": "integer", "minimum": 1, "maximum": 10000, "default": 100},
+        "lr": {"type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.001},
+        "early_stopping": {"type": "boolean", "default": true},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 2147483647, "default": 1},
+        "chunk_size": {"type": "integer", "minimum": 1, "maximum": 4096, "default": 256},
+        "batch_key": {"type": ["string", "null"], "minLength": 1, "default": null},
+        "categorical_covariates": {"type": ["array", "null"],
+          "uniqueItems": true, "items": {"type": "string", "minLength": 1},
+          "default": null},
+        "continuous_covariates": {"type": ["array", "null"],
+          "uniqueItems": true, "items": {"type": "string", "minLength": 1},
+          "default": null},
+        "use_gpu": {"type": "boolean", "enum": [false], "default": false}
+      }, "additionalProperties": false},
+      "registry_reads": [{
+        "name": "cell_metadata", "category": "authenticated_core_registry_snapshot",
+        "kind": "ordered_cell_metadata", "reader": "read_ordered_cell_metadata",
+        "matrix_input": "matrix", "field_parameters": [
+          {"parameter": "batch_key", "role": "categorical", "cardinality": "zero_or_one"},
+          {"parameter": "categorical_covariates", "role": "categorical", "cardinality": "zero_or_more"},
+          {"parameter": "continuous_covariates", "role": "continuous", "cardinality": "zero_or_more"}
+        ], "row_order": "matrix_effective_cell_order_v1",
+        "missing_value_policy": "preserve_null_v1",
+        "call_discipline": "single_use"
+      }],
+      "typed_slice_reads": [{
+        "name": "chunks", "input": "matrix", "reader": "read_typed_slices",
+        "kind": "matrix", "supported_axes": ["cells"], "chunk_axis": "cells",
+        "chunk_size_parameter": "chunk_size",
+        "call_discipline": "ordered_partition_exactly_once",
+        "empty_selection_policy": "reject", "duplicate_policy": "reject",
+        "value_policy": "nonnegative_integer_v1",
+        "selection": {"cells": {"policy": "effective_input_axis_v1"},
+          "features": {"policy": "effective_input_axis_v1"}}
+      }],
+      "dimension_policies": [{"output": "fit_summary",
+        "policy": "data_dependent_table_v1"}],
+      "outputs": [
+        {"name": "space", "category": "materialization", "kind": "space",
+          "storage_profile": "space_file_backed_hdf5_v1",
+          "allocated_id_key": "scvi_space_id", "required": true,
+          "promotion_group": "fit",
+          "materialized_by_terminals": ["fit_summary", "model"]},
+        {"name": "model", "category": "terminal_artifact",
+          "kind": "model_ref", "storage_profile": "model_ref_contained_tree_v1",
+          "allocated_id_key": "scvi_model_id", "required": true,
+          "promotion_group": "fit",
+          "matrix_trained_contained_model_closure_policy": {
+            "policy": "matrix_trained_contained_model_closure.v1",
+            "engine": "scvi", "model_type": "scvi_train",
+            "primary_path": "model.pt", "source_matrix_input": "matrix",
+            "paired_space_output": "space",
+            "latent_dimensions_parameter": "n_latent",
+            "required_sibling_terminals": ["space", "fit_summary"],
+            "file_order": "utf8_path_lexicographic_v1",
+            "maximum_file_count": 32,
+            "maximum_total_bytes": 1073741824
+          }},
+        {"name": "fit_summary", "category": "terminal_artifact",
+          "kind": "obs_table", "storage_profile": "terminal_primitive_v1",
+          "allocated_id_key": "scvi_fit_summary_id", "required": true,
+          "promotion_group": "fit", "table_type": "scvi_fit_summary"}
+      ],
+      "dependencies": [{"requirement_id": "cpu", "kind": "device_runtime",
+        "name": "cpu", "disposition": "required",
+        "probe": "core_device_availability_v1"}],
+      "promotion_closure": {
+        "model": ["fit_summary", "model", "space"],
+        "fit_summary": ["fit_summary", "model", "space"]
+      },
+      "replay_equivalence": {"space": "exact_canonical_value",
+        "model": "loadable_reference",
+        "fit_summary": "exact_canonical_value"}
+    },
+    {
       "name": "peakvi_fit",
       "qualified_name": "scwblatent::peakvi_fit",
       "title": "PeakVI CPU fit",

@@ -1,2 +1,4 @@
 ^\.git$
 ^\.pytest_cache$
+^inst/python/__pycache__$
+^tests/__pycache__$

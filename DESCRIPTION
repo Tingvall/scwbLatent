@@ -3,7 +3,7 @@ Type: Package
 Title: Authenticated Latent-Model Operation Pack for scworkbench
 Version: 0.1.0
 Authors@R: person("scworkbench", "Contributors", email = "team@example.invalid", role = c("aut", "cre"))
-Description: CPU PeakVI fit and transfer projection through ABI-v3 authenticated matrix and model capabilities.
+Description: CPU PeakVI fit and transfer projection plus CPU scVI training through ABI-v3 authenticated matrix, metadata, and model capabilities.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Imports: scworkbench, Matrix, jsonlite, digest

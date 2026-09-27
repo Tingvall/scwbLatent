@@ -13,7 +13,7 @@
   if (!file.exists(python) || dir.exists(python)) stop(
     "scwbLatent Python interpreter is absent.", call. = FALSE)
   probe <- suppressWarnings(system2(python,
-    c("-c", shQuote("import scvi, anndata, scipy, torch; assert hasattr(scvi.model, 'PEAKVI')")),
+    c("-c", shQuote("import scvi, anndata, scipy, torch; assert hasattr(scvi.model, 'PEAKVI') and hasattr(scvi.model, 'SCVI')")),
     stdout = TRUE, stderr = TRUE))
   status <- attr(probe, "status") %||% 0L
   if (!identical(as.integer(status), 0L)) stop(
@@ -34,6 +34,7 @@ register_operation_pack <- function() {
   scworkbench::wb_operation_pack_register(
     system.file("scworkbench", "operation-pack.json",
       package = "scwbLatent"),
-    list(`scwblatent::peakvi_fit` = .latent_peakvi_fit,
+    list(`scwblatent::scvi_train` = .latent_scvi_train,
+      `scwblatent::peakvi_fit` = .latent_peakvi_fit,
       `scwblatent::peakvi_project` = .latent_peakvi_project))
 }

@@ -75,12 +75,13 @@
   invisible("model_input")
 }
 
-.latent_private_compute <- function(request, stage, staged) {
+.latent_private_compute <- function(request, stage, staged,
+    script_name = "peakvi_private.py") {
   python <- .latent_runtime$python
   if (!nzchar(as.character(python %||% "")[1]) ||
       !file.exists(python)) .latent_fail(
         "CPU PeakVI interpreter disappeared before execution")
-  script <- system.file("python", "peakvi_private.py", package = "scwbLatent")
+  script <- system.file("python", script_name, package = "scwbLatent")
   if (!nzchar(script) || !file.exists(script))
     .latent_fail("private PeakVI compute helper is absent")
   jsonlite::write_json(request, file.path(stage, "request.json"),
