@@ -183,6 +183,11 @@ test_scvi_cpu_fit_metadata_and_promotion_contract <- function() {
     isTRUE(all.equal(as.numeric(summary$learning_rate[[1]]), 0.001)),
     isTRUE(summary$early_stopping[[1]]),
     isFALSE(summary$use_gpu[[1]]),
+    identical(as.character(summary$observed_training_device[[1]]), "cpu"),
+    identical(as.integer(summary$completed_epochs[[1]]), 1L),
+    as.integer(summary$training_batches_observed[[1]]) >= 1L,
+    nzchar(as.character(summary$torch_version[[1]])),
+    identical(as.character(summary$gpu_name[[1]]), ""),
     identical(as.character(summary$categorical_covariates_json[[1]]),
       '["condition"]'),
     identical(as.character(summary$continuous_covariates_json[[1]]),
@@ -227,6 +232,32 @@ test_scvi_cpu_fit_metadata_and_promotion_contract <- function() {
     isTRUE(all.equal(as.numeric(unlist(snapshot$fields[[3]]$values)),
       fixture$metadata$quality)),
     identical(as.integer(retained$cell_metadata$observation$use_count), 1L))
+  TRUE
+}
+
+test_scvi_gpu_unavailable_zero_residue_and_cpu_retry_contract <- function() {
+  fixture <- .latent_scvi_fixture()
+  on.exit(.latent_scvi_fixture_close(fixture), add = TRUE)
+  baseline <- .latent_scvi_source_only(fixture$bundle)
+  old_visible <- Sys.getenv("CUDA_VISIBLE_DEVICES", unset = NA_character_)
+  on.exit(if (is.na(old_visible)) Sys.unsetenv("CUDA_VISIBLE_DEVICES") else
+    Sys.setenv(CUDA_VISIBLE_DEVICES = old_visible), add = TRUE)
+  Sys.setenv(CUDA_VISIBLE_DEVICES = "")
+  run <- function(use_gpu) scworkbench::wb_session_run_op(
+    scworkbench::wb_session_new(), fixture$bundle,
+    "scwblatent::scvi_train", inputs = list(
+      matrix = "RNA_counts", n_latent = 2L, n_layers = 1L,
+      n_hidden = 16L, max_epochs = 1L, chunk_size = 6L,
+      use_gpu = use_gpu, cell_set = "all", min_cells = 1L))
+  failure <- tryCatch(run(TRUE), error = identity)
+  stopifnot(inherits(failure, "error"),
+    grepl("GPU requested", conditionMessage(failure), fixed = TRUE),
+    identical(.latent_scvi_source_only(fixture$bundle), baseline))
+  retry <- run(FALSE)
+  stopifnot(identical(sort(names(retry$run$outputs)),
+    c("fit_summary", "model", "space")))
+  retry$session <- scworkbench::wb_session_discard(retry$session)
+  stopifnot(identical(.latent_scvi_source_only(fixture$bundle), baseline))
   TRUE
 }
 

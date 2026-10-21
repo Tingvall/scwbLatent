@@ -17,7 +17,7 @@
     stdout = TRUE, stderr = TRUE))
   status <- attr(probe, "status") %||% 0L
   if (!identical(as.integer(status), 0L)) stop(
-    "scwbLatent CPU PeakVI dependency probe failed before dispatch: ",
+    "scwbLatent Python dependency probe failed before dispatch: ",
     paste(probe, collapse = "\n"), call. = FALSE)
   python
 }
@@ -26,7 +26,7 @@
 
 #' Register scwbLatent operations
 #'
-#' Activation verifies the selected private CPU Python runtime before the
+#' Activation verifies the selected private Python runtime before the
 #' operation pack is allowed to enter the catalog.
 #' @export
 register_operation_pack <- function() {

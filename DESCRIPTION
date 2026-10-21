@@ -1,9 +1,9 @@
 Package: scwbLatent
 Type: Package
 Title: Authenticated Latent-Model Operation Pack for scworkbench
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: person("scworkbench", "Contributors", email = "team@example.invalid", role = c("aut", "cre"))
-Description: CPU PeakVI fit and transfer projection, CPU scVI training, and authenticated latent-space union through ABI-v3 matrix, metadata, model, space, and lineage capabilities.
+Description: CPU PeakVI fit and transfer projection, CPU or one-device GPU scVI training, and authenticated latent-space union through ABI-v3 matrix, metadata, model, space, and lineage capabilities.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Imports: scworkbench, Matrix, jsonlite, digest

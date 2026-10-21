@@ -3,7 +3,7 @@
   "pack_abi_version": "3",
   "identity_scheme": "scworkbench.operation_pack.canonical_json.v1",
   "namespace": "scwblatent",
-  "package": {"name": "scwbLatent", "version": "0.1.0"},
+  "package": {"name": "scwbLatent", "version": "0.1.1"},
   "backend": "R",
   "compatibility": {
     "scworkbench": {"minimum": "0.1.0", "maximum_exclusive": "0.2.0"},
@@ -14,8 +14,8 @@
     {
       "name": "scvi_train",
       "qualified_name": "scwblatent::scvi_train",
-      "title": "scVI CPU fit",
-      "description": "Fit a CPU scVI model from authenticated count-like matrix chunks and ordered cell metadata, publishing a contained model, latent space, and fit summary.",
+      "title": "scVI fit",
+      "description": "Fit a CPU or one-device GPU scVI model from authenticated count-like matrix chunks and ordered cell metadata, publishing a contained model, latent space, and fit summary.",
       "runner": ".latent_scvi_train",
       "inputs": [{"name": "matrix", "kind": "matrix", "required": true,
         "alignment": "cell_and_feature_ordered"}],
@@ -36,7 +36,7 @@
         "continuous_covariates": {"type": ["array", "null"],
           "uniqueItems": true, "items": {"type": "string", "minLength": 1},
           "default": null},
-        "use_gpu": {"type": "boolean", "enum": [false], "default": false}
+        "use_gpu": {"type": "boolean", "default": false}
       }, "additionalProperties": false},
       "registry_reads": [{
         "name": "cell_metadata", "category": "authenticated_core_registry_snapshot",

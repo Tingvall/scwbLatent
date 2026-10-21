@@ -7,6 +7,6 @@
 register_operation_pack()
 }
 \description{
-Activation verifies the selected private CPU Python runtime before the
+Activation verifies the selected private Python runtime before the
 operation pack is allowed to enter the catalog.
 }

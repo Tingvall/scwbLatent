@@ -78,12 +78,13 @@
 .latent_private_compute <- function(request, stage, staged,
     script_name = "peakvi_private.py") {
   python <- .latent_runtime$python
+  method <- if (identical(script_name, "scvi_private.py")) "scVI" else "PeakVI"
   if (!nzchar(as.character(python %||% "")[1]) ||
       !file.exists(python)) .latent_fail(
-        "CPU PeakVI interpreter disappeared before execution")
+        paste(method, "interpreter disappeared before execution"))
   script <- system.file("python", script_name, package = "scwbLatent")
   if (!nzchar(script) || !file.exists(script))
-    .latent_fail("private PeakVI compute helper is absent")
+    .latent_fail(paste("private", method, "compute helper is absent"))
   jsonlite::write_json(request, file.path(stage, "request.json"),
     auto_unbox = TRUE, null = "null", digits = NA)
   before <- staged$digests
@@ -92,7 +93,7 @@
     stdout = file.path(stage, "stdout.log"),
     stderr = file.path(stage, "stderr.log")))
   if (!identical(as.integer(status), 0L))
-    .latent_fail(paste0("private PeakVI compute failed: ", paste(
+    .latent_fail(paste0("private ", method, " compute failed: ", paste(
       readLines(file.path(stage, "stderr.log"), warn = FALSE),
       collapse = "\n")))
   for (relative in names(before))

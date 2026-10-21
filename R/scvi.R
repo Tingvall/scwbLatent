@@ -41,6 +41,7 @@
     max_epochs = as.integer(params$max_epochs),
     lr = as.numeric(params$lr),
     early_stopping = isTRUE(params$early_stopping),
+    use_gpu = isTRUE(params$use_gpu),
     seed = as.integer(params$seed),
     batch_key = params$batch_key,
     categorical_covariates = unname(as.list(as.character(
@@ -71,6 +72,7 @@
         as.numeric(params$lr))) ||
       !identical(isTRUE(response$effective_params$early_stopping),
         isTRUE(params$early_stopping)) ||
+      !identical(response$effective_params$use_gpu, isTRUE(params$use_gpu)) ||
       !identical(as.character(response$effective_params$batch_key %||% ""),
         as.character(params$batch_key %||% "")) ||
       !identical(as.character(response$effective_params$
@@ -80,6 +82,38 @@
         continuous_covariates %||% character()),
         as.character(params$continuous_covariates %||% character())))
     .latent_fail("scVI response changed the effective training parameters")
+  requested_device <- if (isTRUE(params$use_gpu)) "cuda" else "cpu"
+  observed_device <- if (isTRUE(params$use_gpu)) "cuda:0" else "cpu"
+  valid_text <- function(value) is.character(value) &&
+    length(value) == 1L && !is.na(value) && nzchar(value)
+  valid_count <- function(value, maximum) is.numeric(value) &&
+    length(value) == 1L && !is.na(value) && is.finite(value) &&
+    value >= 1 && value <= maximum && value == floor(value)
+  if (!identical(response$training_device_type, requested_device) ||
+      !identical(response$observed_training_device, observed_device) ||
+      !identical(response$trainer_root_device, observed_device) ||
+      !(if (isTRUE(params$use_gpu))
+        is.numeric(response$training_device_index) &&
+          length(response$training_device_index) == 1L &&
+          !is.na(response$training_device_index) &&
+          response$training_device_index == 0 else
+        is.null(response$training_device_index)) ||
+      !valid_count(response$completed_epochs,
+        as.integer(params$max_epochs)) ||
+      !valid_count(response$training_batches_observed, Inf) ||
+      as.numeric(response$training_batches_observed) <
+        as.numeric(response$completed_epochs) ||
+      !valid_text(response$torch_version) ||
+      !is.character(response$cuda_visible_devices) ||
+      length(response$cuda_visible_devices) != 1L ||
+      is.na(response$cuda_visible_devices) ||
+      (isTRUE(params$use_gpu) &&
+        (!valid_text(response$torch_cuda_version) ||
+          !valid_text(response$gpu_name) ||
+          !valid_text(response$gpu_compute_capability) ||
+          !grepl("^[0-9]+[.][0-9]+$",
+            response$gpu_compute_capability))))
+    .latent_fail("scVI response did not prove the requested training device")
   space <- writers$write_space("space", .latent_space_primitive(
     computed$values))
   writers$write_terminal_primitive("fit_summary",
@@ -106,7 +140,20 @@
       learning_rate = as.numeric(params$lr),
       early_stopping = isTRUE(params$early_stopping),
       seed = as.integer(params$seed),
-      use_gpu = FALSE,
+      use_gpu = isTRUE(params$use_gpu),
+      observed_training_device = as.character(
+        response$observed_training_device)[1],
+      completed_epochs = as.integer(response$completed_epochs),
+      training_batches_observed = as.integer(
+        response$training_batches_observed),
+      torch_version = as.character(response$torch_version)[1],
+      torch_cuda_version = as.character(
+        response$torch_cuda_version %||% "")[1],
+      cuda_visible_devices = as.character(
+        response$cuda_visible_devices %||% "")[1],
+      gpu_name = as.character(response$gpu_name %||% "")[1],
+      gpu_compute_capability = as.character(
+        response$gpu_compute_capability %||% "")[1],
       scvi_version = as.character(response$scvi_version),
       stringsAsFactors = FALSE), table_type = "scvi_fit_summary"))
   root <- file.path(stage, "model_output")
