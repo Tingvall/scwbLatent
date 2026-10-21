@@ -45,6 +45,15 @@ cell/feature counts, and the returned latent-file checksum. The private
 Python computation materializes its AnnData working matrix, so this pilot is
 not a large-data qualification.
 
+The private matrix loader imposes no fixed total cell, feature, chunk-count or
+nonzero-count ceiling. Chunk size remains bounded by the declared 4096-cell
+maximum; the full sparse AnnData working matrix must fit available memory.
+Removing dataset caps does not make scVI training out-of-core. Ordered scVI
+metadata currently supports at most 16 selected covariate fields, and contained
+models retain their declared 32-file/1-GiB publication limits.
+Private Python execution disables bytecode-cache writes, so fitting does not
+modify the installed pack or invalidate its installation identity.
+
 PeakVI `batch_key` remains deliberately restricted to null. By contrast,
 `scvi_train` receives core-resolved, typed, exactly ordered batch,
 categorical and continuous metadata in an authenticated snapshot. Its matrix

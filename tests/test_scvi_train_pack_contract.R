@@ -122,6 +122,14 @@ test_b_scvi_historical_pack_free_read_only_inspection_contract <- function() {
 }
 
 test_scvi_cpu_fit_metadata_and_promotion_contract <- function() {
+  pack_root <- find.package("scwbLatent")
+  pack_files <- function() {
+    paths <- sort(list.files(pack_root, recursive = TRUE, all.files = TRUE,
+      full.names = TRUE, no.. = TRUE))
+    stats::setNames(vapply(paths, function(path) digest::digest(file = path,
+      algo = "sha256"), character(1)), paths)
+  }
+  installed_before <- pack_files()
   fixture <- .latent_scvi_fixture()
   on.exit(.latent_scvi_fixture_close(fixture), add = TRUE)
   stopifnot(sum(scworkbench::wb_list_ops() ==
@@ -231,7 +239,8 @@ test_scvi_cpu_fit_metadata_and_promotion_contract <- function() {
       fixture$metadata$condition),
     isTRUE(all.equal(as.numeric(unlist(snapshot$fields[[3]]$values)),
       fixture$metadata$quality)),
-    identical(as.integer(retained$cell_metadata$observation$use_count), 1L))
+    identical(as.integer(retained$cell_metadata$observation$use_count), 1L),
+    identical(pack_files(), installed_before))
   TRUE
 }
 

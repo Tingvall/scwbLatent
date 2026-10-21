@@ -89,7 +89,7 @@
     auto_unbox = TRUE, null = "null", digits = NA)
   before <- staged$digests
   status <- suppressWarnings(system2(python,
-    c(shQuote(script), "--stage-root", shQuote(stage)),
+    c("-B", shQuote(script), "--stage-root", shQuote(stage)),
     stdout = file.path(stage, "stdout.log"),
     stderr = file.path(stage, "stderr.log")))
   if (!identical(as.integer(status), 0L))

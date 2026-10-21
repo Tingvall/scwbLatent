@@ -21,11 +21,7 @@ from scipy import io as scipy_io
 from scipy import sparse
 
 SCHEMA = "scwblatent.peakvi_private.v1"
-MAX_FEATURES = 100_000
-MAX_CELLS = 100_000
-MAX_CHUNKS = 10_000
 MAX_CHUNK_CELLS = 4_096
-MAX_NNZ = 100_000_000
 
 
 class PrivatePeakVIError(ValueError):
@@ -73,11 +69,11 @@ def _stage_path(stage: Path, name: Any, *, kind: str) -> Path:
     return resolved
 
 
-def _ids(path: Path, label: str, ceiling: int) -> list[str]:
+def _ids(path: Path, label: str, ceiling: int | None = None) -> list[str]:
     values = path.read_text(encoding="utf-8").splitlines()
     if (
         not values
-        or len(values) > ceiling
+        or (ceiling is not None and len(values) > ceiling)
         or any(not value or "\t" in value or "\r" in value for value in values)
         or len(set(values)) != len(values)
     ):
@@ -174,12 +170,10 @@ def _matrix(stage: Path, request: dict[str, Any]):
     import anndata as ad  # Import only after closed request/path validation.
     import pandas as pd
 
-    features = _ids(
-        _stage_path(stage, request["features"], kind="file"), "features", MAX_FEATURES
-    )
+    features = _ids(_stage_path(stage, request["features"], kind="file"), "features")
     chunks = request["chunks"]
-    if not isinstance(chunks, list) or not 1 <= len(chunks) <= MAX_CHUNKS:
-        raise PrivatePeakVIError("chunks must be a bounded nonempty array")
+    if not isinstance(chunks, list) or not chunks:
+        raise PrivatePeakVIError("chunks must be a nonempty array")
     parts = []
     cells: list[str] = []
     total_nnz = 0
@@ -206,7 +200,7 @@ def _matrix(stage: Path, request: dict[str, Any]):
             matrix_format != "coordinate"
             or symmetry != "general"
             or (rows, columns) != (len(features), len(chunk_cells))
-            or declared_nnz > min(MAX_NNZ - total_nnz, len(features) * len(chunk_cells))
+            or not 0 <= declared_nnz <= len(features) * len(chunk_cells)
         ):
             raise PrivatePeakVIError(
                 f"chunk {ordinal} Matrix Market header exceeds typed bounds"
@@ -225,10 +219,6 @@ def _matrix(stage: Path, request: dict[str, Any]):
             )
         total_nnz += matrix.nnz
         largest_chunk_cells = max(largest_chunk_cells, len(chunk_cells))
-        if total_nnz > MAX_NNZ or len(cells) + len(chunk_cells) > MAX_CELLS:
-            raise PrivatePeakVIError(
-                "PeakVI private matrix exceeds its resource ceiling"
-            )
         parts.append(matrix)
         cells.extend(chunk_cells)
     if len(set(cells)) != len(cells):

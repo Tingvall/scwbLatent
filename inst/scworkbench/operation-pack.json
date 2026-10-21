@@ -3,7 +3,7 @@
   "pack_abi_version": "3",
   "identity_scheme": "scworkbench.operation_pack.canonical_json.v1",
   "namespace": "scwblatent",
-  "package": {"name": "scwbLatent", "version": "0.1.1"},
+  "package": {"name": "scwbLatent", "version": "0.1.2"},
   "backend": "R",
   "compatibility": {
     "scworkbench": {"minimum": "0.1.0", "maximum_exclusive": "0.2.0"},
