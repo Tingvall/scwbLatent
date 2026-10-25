@@ -29,9 +29,11 @@ setwd(values[["SCWB_LATENT_PACK_SOURCE"]])
 library(scworkbench)
 library(scwbLatent)
 source(file.path("tests", "test_scvi_train_pack_contract.R"))
+source(file.path("tests", "test_scvi_selected_cells_contract.R"))
 tests <- c("test_a_scvi_missing_pack_and_dependency_predispatch_contract",
   "test_b_scvi_historical_pack_free_read_only_inspection_contract",
   "test_scvi_cpu_fit_metadata_and_promotion_contract",
+  "test_scvi_selected_cells_contract",
   "test_scvi_separate_categorical_and_continuous_covariate_contract",
   "test_scvi_count_and_covariate_authority_rejection_contract",
   "test_scvi_authenticated_matrix_change_rejects_before_dispatch_contract",
