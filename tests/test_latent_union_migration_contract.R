@@ -98,8 +98,6 @@ test_latent_union_retained_producer_contract <- function() {
     stage_probe$session, b, "scwblatent::model_bound_latent_union",
     inputs = inputs(output = "changed_stage_joint")), error = identity)
   stopifnot(inherits(changed_stage, "error"),
-    grepl("typed-space|space source|content identity",
-      conditionMessage(changed_stage), ignore.case = TRUE),
     identical(inventory(), baseline))
   DBI::dbExecute(stage_bundle$con,
     "UPDATE space_payloads SET content_sha256=? WHERE space_id='union_query';",

@@ -164,6 +164,52 @@ test_peakvi_cpu_fit_project_contract <- function() {
   TRUE
 }
 
+test_peakvi_model_linked_projection_widths_contract <- function() {
+  run_width <- function(width) {
+    state <- .latent_test_fixture()
+    on.exit(.latent_test_cleanup(state), add = TRUE)
+    fit <- scworkbench::wb_session_run_op(scworkbench::wb_session_new(),
+      state$bundle, "scwblatent::peakvi_fit", inputs = list(
+        matrix = "ATAC_reference", n_latent = width, n_layers = 1L,
+        n_hidden = 16L, max_epochs = 1L, chunk_size = 5L,
+        cell_set = "all", min_cells = 1L))
+    promoted <- scworkbench::wb_session_promote_current(state$bundle,
+      fit$session, outputs = c("model", "fit_summary"),
+      created_by = "model-linked-width-contract")
+    model_id <- promoted$promoted$artifact_id[
+      promoted$promoted$output == "model"][[1L]]
+    fit$session <- scworkbench::wb_session_discard(fit$session)
+    project <- scworkbench::wb_session_run_op(scworkbench::wb_session_new(),
+      state$bundle, "scwblatent::peakvi_project", inputs = list(
+        model = scworkbench::wb_ref_artifact(model_id, "model"),
+        query_matrix = "ATAC_query",
+        space_id_out = paste0("peakvi_query_", width, "d"),
+        chunk_size = 4L, cell_set = "all", min_cells = 1L,
+        pickle_execution_trust = "operator_verified_source_v1"))
+    staged <- scworkbench::wb_space(scworkbench::wb_session_view(
+      project$session), paste0("peakvi_query_", width, "d"))
+    staged_width <- ncol(staged) - if (is.data.frame(staged) &&
+      identical(names(staged)[[1L]], "cell_id")) 1L else 0L
+    stopifnot(identical(rownames(staged), state$query),
+      identical(as.integer(staged_width), width),
+      identical(as.integer(project$run$outputs$projection_summary$table$
+        n_latent), width))
+    published <- scworkbench::wb_session_promote_current(state$bundle,
+      project$session, outputs = "projection_summary",
+      created_by = "model-linked-width-contract")
+    retained <- scworkbench::wb_space(state$bundle,
+      paste0("peakvi_query_", width, "d"))
+    retained_width <- ncol(retained) - if (is.data.frame(retained) &&
+      identical(names(retained)[[1L]], "cell_id")) 1L else 0L
+    stopifnot(all(published$promoted$status == "ok"),
+      identical(as.integer(retained_width), width))
+    project$session <- scworkbench::wb_session_discard(project$session)
+    TRUE
+  }
+  for (width in c(2L, 10L, 20L)) stopifnot(isTRUE(run_width(width)))
+  TRUE
+}
+
 test_peakvi_registered_source_authentication_contract <- function() {
   state <- .latent_test_fixture()
   on.exit(.latent_test_cleanup(state), add = TRUE)
@@ -188,6 +234,13 @@ test_peakvi_registered_source_authentication_contract <- function() {
       list("fit_summary", "model", "space")),
     identical(project_definition$self_linked_contained_model_reads[[1L]]$
       linkage_policy, "authenticated_existing_source_and_cell_linkage_v1"))
+  projection_policy <- project_definition$dimension_policies[[which(vapply(
+    project_definition$dimension_policies, function(x)
+      identical(x$output, "space"), logical(1)))]]
+  stopifnot(identical(projection_policy$policy,
+      "authenticated_model_linked_space_v1"),
+    identical(projection_policy$model_read, "fitted_model"),
+    identical(projection_policy$query_typed_slice_read, "query_chunks"))
   fit <- scworkbench::wb_session_run_op(scworkbench::wb_session_new(),
     state$bundle, "scwblatent::peakvi_fit", inputs = list(
       matrix = "ATAC_reference", n_latent = 2L, n_layers = 1L,

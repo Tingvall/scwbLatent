@@ -3,10 +3,10 @@
   "pack_abi_version": "3",
   "identity_scheme": "scworkbench.operation_pack.canonical_json.v1",
   "namespace": "scwblatent",
-  "package": {"name": "scwbLatent", "version": "0.1.2"},
+  "package": {"name": "scwbLatent", "version": "0.1.3"},
   "backend": "R",
   "compatibility": {
-    "scworkbench": {"minimum": "0.1.0", "maximum_exclusive": "0.2.0"},
+    "scworkbench": {"minimum": "0.1.2", "maximum_exclusive": "0.2.0"},
     "pack_abi": {"minimum": "3", "maximum": "3"}
   },
   "entry_point": "scwbLatent::register_operation_pack",
@@ -215,8 +215,16 @@
         "overwrite_parameter": "overwrite",
         "transaction_scope": "promotion_group_v1"
       }],
-      "dimension_policies": [{"output": "projection_summary",
-        "policy": "data_dependent_table_v1"}],
+      "dimension_policies": [
+        {"output": "space",
+          "policy": "authenticated_model_linked_space_v1",
+          "model_read": "fitted_model",
+          "query_typed_slice_read": "query_chunks",
+          "row_order": "query_typed_slice_cell_axis_v1",
+          "dimension_source": "authenticated_model_linkage_latent_dimension_count_v1"},
+        {"output": "projection_summary",
+          "policy": "data_dependent_table_v1"}
+      ],
       "outputs": [
         {"name": "space", "category": "materialization", "kind": "space",
           "storage_profile": "space_file_backed_hdf5_v1",

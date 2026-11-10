@@ -1,5 +1,10 @@
 # scwbLatent
 
+PeakVI projection declares a generic authenticated model-linked space output:
+the query grant fixes row order and the retained model linkage fixes latent
+width. Projection remains transfer without refitting, including existing 2D
+behavior and higher-dimensional retained models.
+
 This independent R operation pack is the sole current owner of
 `scwblatent::peakvi_fit`, `scwblatent::peakvi_project`, and
 `scwblatent::scvi_train`, and `scwblatent::model_bound_latent_union`.
